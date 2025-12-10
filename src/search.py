@@ -8,7 +8,6 @@ load_dotenv()
 class RAGSearch:
     def __init__(self, persist_dir: str = "faiss_store", embedding_model: str = "all-MiniLM-L6-v2", llm_model: str = "llama-3.1-8b-instant"):
         self.vectorstore = FaissVectorStore(persist_dir, embedding_model)
-        # Load or build vectorstore
         faiss_path = os.path.join(persist_dir, "faiss.index")
         meta_path = os.path.join(persist_dir, "metadata.pkl")
         if not (os.path.exists(faiss_path) and os.path.exists(meta_path)):
@@ -31,10 +30,8 @@ class RAGSearch:
         return response.content
     
     def hybrid_search(self, query, top_k=5):
-        # Vector Search
         vector_results = self.vectorstore.query(query, top_k=top_k)
 
-        # Keyword Search fallback
         keyword_results = []
         for meta in self.vectorstore.metadata:
             text = meta.get("text", "")
@@ -42,7 +39,7 @@ class RAGSearch:
                 keyword_results.append({
                     "text": text,
                     "metadata": meta,
-                    "score": 0.20  # small boost — will be reranked later
+                    "score": 0.20
                 })
 
         combined = vector_results + keyword_results
@@ -68,11 +65,14 @@ class RAGSearch:
 
         top_result = results[0]
         confidence = top_result.get("score", 0.0)
-        if confidence < 0.35:  # tune later
-            return "I’m not fully sure — can you provide more details?"
+        #if confidence < 0.1:  # tune later
+        #    return "I’m not fully sure — can you provide more details?"
 
-        context_block = "\n\n".join([f"Source: {r['metadata']['source']} | Text: {r['text']}" 
-                                    for r in results])
+        context_block = "\n\n".join([
+        f"Source: {r.get('metadata', {}).get('source', 'Unknown')} | "
+        f"Text: {r.get('text') or r.get('page_content') or r.get('chunk') or ''}"
+        for r in results
+        ])
 
         prompt = f"""
             Answer the query using only the provided context.
@@ -92,6 +92,6 @@ class RAGSearch:
 # Example usage
 if __name__ == "__main__":
     rag_search = RAGSearch()
-    query = " The VKYC officer told me the photo in my Aadhaar card doesn't match."
+    query = "I'm having trouble with the OTP/Activation step"
     summary = rag_search.search_and_answer(query, top_k=3)
     print("Summary:", summary)
